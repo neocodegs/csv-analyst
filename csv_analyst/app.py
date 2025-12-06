@@ -56,7 +56,7 @@ def main():
         
         model_name = st.selectbox(
             "选择模型",
-            ["qwen3-coder-plus", "qwen3-max", "qwen-plus"],
+            ["qwen3-coder-plus", "qwen3-max", "qwen-plus", "deepseek-v3.2"],
             index=0
         )
         
