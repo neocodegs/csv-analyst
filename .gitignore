@@ -55,7 +55,3 @@ uv.lock
 
 charts/
 .cursorrules
-
-# Static files (but keep symlinks to data)
-static/
-!static/*.csv
