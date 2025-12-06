@@ -56,7 +56,7 @@ def main():
         
         model_name = st.selectbox(
             "选择模型",
-            ["qwen-plus", "gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"],
+            ["qwen3-coder-plus", "qwen3-max", "qwen-plus"],
             index=0
         )
         
