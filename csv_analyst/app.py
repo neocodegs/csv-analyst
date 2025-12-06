@@ -9,6 +9,9 @@ import os
 import matplotlib.pyplot as plt
 import seaborn as sns
 from dotenv import load_dotenv
+import logging
+from importlib import resources
+from importlib import resources
 try:
     from csv_analyst.pandas_llm_helper import PandasLLMAgent, PandasMultiTableAgent
 except ImportError:
@@ -32,8 +35,43 @@ if "messages" not in st.session_state:
 if "dataframes" not in st.session_state:
     st.session_state.dataframes = {}
 
+if "demo_logs" not in st.session_state:
+    st.session_state.demo_logs = []
+
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger.setLevel(logging.INFO)
+
 def reset_chat():
     st.session_state.messages = []
+
+def _log_demo(message: str):
+    """同时输出到 Streamlit 日志和 session_state"""
+    st.session_state.demo_logs.append(message)
+    logger.info(message)
+
+def _resolve_demo_file(filename: str) -> str | None:
+    """
+    部署环境优先使用包内资源，回退到本地文件系统。
+    在 Streamlit Cloud / PyPI 安装后路径可能不同，因此通过 importlib.resources 读取。
+    """
+    # 1) 尝试包内资源
+    try:
+        candidate = resources.files("csv_analyst.data") / filename
+        if candidate.is_file():
+            return str(candidate)
+        _log_demo(f"resources check failed for {filename}: not found")
+    except Exception as e:
+        _log_demo(f"resources check exception for {filename}: {e}")
+
+    # 2) 回退本地路径
+    base_path = os.path.dirname(__file__)
+    fallback = os.path.join(base_path, "data", filename)
+    if os.path.exists(fallback):
+        return fallback
+    _log_demo(f"local fallback missing for {filename}: {fallback}")
+    return None
 
 def main():
     # --- 侧边栏配置 ---
@@ -102,20 +140,47 @@ def main():
         # 加载示例数据的按钮
         if st.button("加载示例数据 (Demo)"):
             try:
-                base_path = os.path.dirname(__file__)
-                demo_files = {
-                    "companies": os.path.join(base_path, "data/companies.csv"),
-                    "employees": os.path.join(base_path, "data/employees.csv"),
-                    "salaries": os.path.join(base_path, "data/salaries.csv")
-                }
-                st.session_state.dataframes = {}
-                for name, path in demo_files.items():
-                    if os.path.exists(path):
-                        st.session_state.dataframes[name] = pd.read_csv(path)
-                st.success("✅ 已加载示例数据！")
-                st.rerun()
+                with st.status("正在加载示例数据...", expanded=True) as status:
+                    _log_demo("Demo load clicked.")
+                    demo_files = {
+                        "companies": "companies.csv",
+                        "employees": "employees.csv",
+                        "salaries": "salaries.csv"
+                    }
+                    st.session_state.dataframes = {}
+                    loaded_tables = []
+
+                    for name, filename in demo_files.items():
+                        path = _resolve_demo_file(filename)
+                        _log_demo(f"Resolved {name}: {path}")
+                        if not path:
+                            continue
+                        exists = os.path.exists(path)
+                        _log_demo(f"Checking {name}: exists={exists}, path={path}")
+                        if not exists:
+                            continue
+                        df = pd.read_csv(path)
+                        st.session_state.dataframes[name] = df
+                        loaded_tables.append(f"{name} ({df.shape[0]}x{df.shape[1]})")
+                        _log_demo(f"Loaded {name} shape={df.shape}")
+
+                    if loaded_tables:
+                        status.update(label="✅ 已加载示例数据", state="complete", expanded=True)
+                        st.success("✅ 已加载示例数据！")
+                        st.session_state.demo_logs.append("Loaded tables: " + ", ".join(loaded_tables))
+                        st.rerun()
+                    else:
+                        status.update(label="⚠️ 未找到示例文件", state="error", expanded=True)
+                        st.warning("未找到示例文件，已记录调试日志，请检查部署包是否包含 data/*.csv")
+                        st.session_state.demo_logs.append("No demo files found. Checked package resources and local path.")
             except Exception as e:
                 st.error(f"加载示例数据失败: {e}")
+                _log_demo(f"Exception during demo load: {e}")
+        
+        if st.session_state.demo_logs:
+            with st.expander("调试日志 (Demo 加载)", expanded=False):
+                for line in st.session_state.demo_logs[-20:]:
+                    st.code(line)
         st.stop()
 
     # 初始化 Agent

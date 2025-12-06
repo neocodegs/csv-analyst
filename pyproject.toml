@@ -24,6 +24,17 @@ dependencies = [
     "streamlit>=1.50.0",
 ]
 
+[tool.hatch.build.targets.wheel]
+include = [
+    "csv_analyst/**",
+]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "csv_analyst/**",
+    "README.md",
+]
+
 [project.scripts]
 csv-analyst = "csv_analyst.app:run_app"
 csv-demo-basic = "csv_analyst.basic_demo:main"
