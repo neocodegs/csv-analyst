@@ -104,8 +104,8 @@ def main():
         # 文件上传
         st.subheader("📂 数据上传")
         uploaded_files = st.file_uploader(
-            "上传 CSV 文件", 
-            type=["csv"], 
+            "上传 CSV/Excel 文件", 
+            type=["csv", "xlsx", "xls", "xlsm"], 
             accept_multiple_files=True,
             on_change=reset_chat
         )
@@ -113,12 +113,22 @@ def main():
         if uploaded_files:
             st.session_state.dataframes = {}
             for file in uploaded_files:
-                # 读取 CSV
-                df = pd.read_csv(file)
-                # 使用文件名（去后缀）作为表名
-                table_name = os.path.splitext(file.name)[0]
-                st.session_state.dataframes[table_name] = df
-                st.success(f"已加载: {table_name} ({df.shape[0]}行 × {df.shape[1]}列)")
+                ext = os.path.splitext(file.name)[1].lower()
+                base_name = os.path.splitext(file.name)[0]
+                try:
+                    if ext == ".csv":
+                        df = pd.read_csv(file)
+                        st.session_state.dataframes[base_name] = df
+                        st.success(f"已加载: {base_name} ({df.shape[0]}行 × {df.shape[1]}列)")
+                    else:
+                        excel_file = pd.ExcelFile(file)
+                        for sheet_name in excel_file.sheet_names:
+                            df = excel_file.parse(sheet_name)
+                            table_name = f"{base_name}_{sheet_name}"
+                            st.session_state.dataframes[table_name] = df
+                        st.success(f"已加载: {base_name} 共 {len(excel_file.sheet_names)} 个工作表")
+                except Exception as e:
+                    st.error(f"读取文件 {file.name} 失败: {e}")
         
         st.markdown("---")
         if st.button("🗑️ 清空聊天记录"):
